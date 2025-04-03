@@ -19,7 +19,7 @@ const upload = multer({
   storage: storage, // 使用diskStorage代替dest
   limits: {
     files: 6,
-    fileSize: 1024 * 1024 * 100 // 添加100MB文件大小限制
+    fileSize: 1024 * 1024 * 1024 // 添加1GB文件大小限制
   }
 });
 

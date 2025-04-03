@@ -78,11 +78,14 @@
   <body>
     <h1>文件传输到 Mac</h1>
 
+    <!-- 修改文件输入框添加视频格式支持 -->
     <div class="upload-box">
-      <input type="file" id="fileInput" multiple />
+      <input type="file" id="fileInput" multiple accept="video/*,image/*" />
       <div id="status"></div>
-      <!-- 新增上传限制提示 -->
-      <div class="upload-tips">最多可上传6个文件，单个文件不超过100MB</div>
+      <!-- 上传提示信息 -->
+      <div class="upload-tips">
+        最多可上传6个文件（支持视频/图片），单个文件不超过1GB
+      </div>
     </div>
     <body>
       <div class="button-container">
@@ -118,10 +121,21 @@
             }
             if (
               Array.from(fileInput.files).some(
-                (f) => f.size > 100 * 1024 * 1024
+                (f) => f.size > 1024 * 1024 * 1024
               )
             ) {
-              status.textContent = "单个文件大小不能超过100MB";
+              status.textContent = "单个文件大小不能超过1GB";
+              return;
+            }
+
+            // 添加文件类型验证
+            const allowedTypes = ["video/", "image/"];
+            if (
+              Array.from(fileInput.files).some(
+                (f) => !allowedTypes.some((t) => f.type.includes(t))
+              )
+            ) {
+              status.textContent = "仅支持视频、图片";
               return;
             }
 
@@ -139,7 +153,7 @@
 
               const result = await response.json();
               if (result.success) {
-                status.innerHTML = `上传成功！<br>文件列表：<br>
+                status.innerHTML = `<span style="color: #28a745;">上传成功！</span><br>文件列表：<br>
                   ${result.files
                     .map(
                       (f) =>
@@ -147,10 +161,13 @@
                     )
                     .join("<br>")}`;
               } else {
-                status.textContent = "上传失败";
+                // 失败时红色提示
+                status.innerHTML =
+                  '<span style="color: #dc3545;">上传失败，请重试</span>';
               }
             } catch (error) {
-              status.textContent = "连接服务器失败";
+              status.innerHTML =
+                '<span style="color: #dc3545;">连接服务器失败</span>';
             }
           } finally {
             btn.disabled = fileInput.files.length === 0; // 恢复按钮状态
@@ -213,8 +230,8 @@
         <h3>剪贴板粘贴区</h3>
         <button onclick="savePaste()">保存内容</button>
       </div>
-      <div 
-        class="paste-area" 
+      <div
+        class="paste-area"
         contenteditable="true"
         placeholder="点击此处粘贴内容（支持文本/图片）"
         id="pasteContent"

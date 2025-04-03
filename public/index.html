@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
+    />
+    <title>文件传输</title>
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        max-width: 500px;
+        margin: 20px auto;
+        padding: 0 10px;
+      }
+      /* 新增移动端样式 */
+      @media (max-width: 480px) {
+        body {
+          margin: 10px;
+          font-size: 16px;
+        }
+        button {
+          padding: 12px;
+          font-size: 16px;
+        }
+        .upload-box {
+          padding: 15px;
+        }
+      }
+      /* 触控优化 */
+      input[type="file"] {
+        font-size: 16px; /* 放大文字 */
+        margin: 10px 0;
+      }
+      button {
+        padding: 10px 20px;
+        background: #007aff;
+        color: white;
+        border: none;
+        border-radius: 8px;
+        -webkit-tap-highlight-color: transparent;
+        display: block;
+        margin: 15px auto; /* 新增居中样式 */
+        width: max-content;
+      }
+      button:disabled {
+        background: #b3b3b3;
+        cursor: not-allowed;
+        opacity: 0.7;
+      }
+      .upload-box {
+        border: 2px dashed #ccc;
+        padding: 20px;
+        text-align: center;
+        margin-bottom: 10px; /* 新增下边距 */
+      }
+      #status {
+        margin-top: 10px;
+        color: #666;
+        /* 新增样式支持颜色变化 */
+        transition: color 0.3s;
+      }
+      .upload-tips {
+        color: #999;
+        font-size: 12px;
+        margin-top: 8px;
+        line-height: 1.4;
+      }
+
+      @media (max-width: 480px) {
+        .upload-tips {
+          font-size: 14px; /* 移动端适当放大文字 */
+          margin-top: 10px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <h1>文件传输到 Mac</h1>
+
+    <div class="upload-box">
+      <input type="file" id="fileInput" multiple />
+      <div id="status"></div>
+      <!-- 新增上传限制提示 -->
+      <div class="upload-tips">最多可上传6个文件，单个文件不超过100MB</div>
+    </div>
+    <body>
+      <div class="button-container">
+        <button id="uploadBtn" onclick="uploadFile()" disabled>上传文件</button>
+      </div>
+
+      <script>
+        // 添加文件选择监听
+        document
+          .getElementById("fileInput")
+          .addEventListener("change", function () {
+            const btn = document.getElementById("uploadBtn");
+            // 根据文件数量切换按钮状态
+            btn.disabled = this.files.length === 0;
+          });
+
+        async function uploadFile() {
+          const fileInput = document.getElementById("fileInput");
+          const status = document.getElementById("status");
+          const btn = document.getElementById("uploadBtn");
+
+          // 上传前禁用按钮
+          btn.disabled = true;
+          try {
+            // 新增前端验证
+            if (fileInput.files.length === 0) {
+              status.textContent = "请先选择文件";
+              return;
+            }
+            if (fileInput.files.length > 6) {
+              status.textContent = "最多只能选择6个文件";
+              return;
+            }
+            if (
+              Array.from(fileInput.files).some(
+                (f) => f.size > 100 * 1024 * 1024
+              )
+            ) {
+              status.textContent = "单个文件大小不能超过100MB";
+              return;
+            }
+
+            const formData = new FormData();
+            // 修复：遍历所有文件
+            Array.from(fileInput.files).forEach((file) => {
+              formData.append("files[]", file); // 使用数组字段名
+            });
+
+            try {
+              const response = await fetch("/upload", {
+                method: "POST",
+                body: formData
+              });
+
+              const result = await response.json();
+              if (result.success) {
+                status.innerHTML = `上传成功！<br>文件列表：<br>
+                  ${result.files
+                    .map(
+                      (f) =>
+                        `<a href="/uploads/${f.filename}" download>${f.filename}</a>`
+                    )
+                    .join("<br>")}`;
+              } else {
+                status.textContent = "上传失败";
+              }
+            } catch (error) {
+              status.textContent = "连接服务器失败";
+            }
+          } finally {
+            btn.disabled = fileInput.files.length === 0; // 恢复按钮状态
+          }
+        }
+      </script>
+    </body>
+    <script>
+      // 新增剪贴板保存函数
+      async function savePaste() {
+        const content = document.getElementById("pasteContent").innerHTML;
+        const status = document.getElementById("pasteStatus");
+
+        try {
+          const response = await fetch("/post-paste", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ content })
+          });
+
+          if (response.ok) {
+            // 成功时显示绿色提示并清空
+            status.innerHTML =
+              '<span style="color: #28a745;">粘贴内容已保存至服务器：pasteboard/paste.txt成功</span>';
+            document.getElementById("pasteContent").innerHTML = "";
+          } else {
+            // 失败时红色提示
+            status.innerHTML =
+              '<span style="color: #dc3545;">上传失败，请重试</span>';
+          }
+        } catch (error) {
+          status.innerHTML =
+            '<span style="color: #dc3545;">连接服务器失败</span>';
+        }
+      }
+
+      // 处理图片粘贴
+      document
+        .getElementById("pasteContent")
+        .addEventListener("paste", async (e) => {
+          const items = e.clipboardData.items;
+          for (let item of items) {
+            if (item.type.indexOf("image") !== -1) {
+              e.preventDefault();
+              const blob = item.getAsFile();
+              const reader = new FileReader();
+              reader.onload = (event) => {
+                const img = document.createElement("img");
+                img.src = event.target.result;
+                document.getElementById("pasteContent").appendChild(img);
+              };
+              reader.readAsDataURL(blob);
+            }
+          }
+        });
+    </script>
+    <!-- 在h1下方添加剪贴板区域 -->
+    <div class="paste-box">
+      <div class="paste-header">
+        <h3>剪贴板粘贴区</h3>
+        <button onclick="savePaste()">保存内容</button>
+      </div>
+      <div 
+        class="paste-area" 
+        contenteditable="true"
+        placeholder="点击此处粘贴内容（支持文本/图片）"
+        id="pasteContent"
+      ></div>
+      <!-- 新增粘贴专用状态提示 -->
+      <div id="pasteStatus" class="paste-status"></div>
+    </div>
+
+    <style>
+      /* 新增剪贴板样式 */
+      .paste-box {
+        border: 2px dashed #ccc;
+        margin: 20px 0;
+        padding: 15px;
+      }
+      .paste-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 10px;
+      }
+      .paste-area {
+        min-height: 100px;
+        padding: 10px;
+        border: 1px solid #eee;
+        white-space: pre-wrap;
+      }
+      .paste-area[placeholder]:empty::before {
+        content: attr(placeholder);
+        color: #999;
+      }
+      .paste-status {
+        margin-top: 10px;
+        font-size: 14px;
+        min-height: 20px;
+      }
+    </style>
+  </body>
+</html>
